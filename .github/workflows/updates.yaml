@@ -315,6 +315,9 @@ jobs:
                     }"
                 # @todo this assumes the branch protection rule is ALWAYS the first one. Brittle. Also assumes the rule exists
                 branchProtectionID=$(gh api graphql -F owner=${REPOOWNER} -F name=${{ steps.defaultbranch.outputs.branch }} -f query=${branchProtectionQuery} --jq '.data.repository.branchProtectionRules.nodes[0].id')
+                
+                echo "Branch Protection ID: ${branchProtectionID}"
+                
                 if [[ -n "${branchProtectionID}" ]]; then
                   # patch it so the review check is disabled
                   # b = branch, p = protection, r = rule, M (at the end) = mutation
