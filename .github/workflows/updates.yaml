@@ -305,7 +305,7 @@ jobs:
               run: |
                 branchProtectionQuery="query(\$name: String\!, \$owner: String\!) { repository(owner: \$owner, name: \$name) { branchProtectionRules(first: 1) { nodes { id } } } }"
                 # @todo this assumes the branch protection rule is ALWAYS the first one. Brittle. Also assumes the rule exists
-                branchProtectionID=$(gh api graphql -F owner=${REPOOWNER} -F name=${{ template.matrix }} -f query=${branchProtectionQuery} --jq '.data.repository.branchProtectionRules.nodes[0].id')
+                branchProtectionID=$(gh api graphql -F owner=${REPOOWNER} -F name=${{ matrix.template }} -f query=${branchProtectionQuery} --jq '.data.repository.branchProtectionRules.nodes[0].id')
                 
                 echo "Branch Protection ID: ${branchProtectionID}"
                 
