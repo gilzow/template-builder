@@ -284,11 +284,16 @@ jobs:
                 STATUS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${REPOOWNER}/${{ matrix.template }}/branches/$UPDATES_BRANCH)
                 step11=$( echo $STATUS | jq -r '.message' )
                 echo "pushed branch status is ${step11}"
-                echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
 
+                if [[ "${step11}" = "Branch not found" ]]; then
+                  echo "The update branch ${UPDATES_BRANCH} for the template ${{ matrix.template }} was not found. Can't continue without it."
+                  exit 11;
+                else
+                  echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
+                fi
             # 3a. Verify the repository is set for automerge
             - name: Step 12. Check if auto-merge is enabled for repository
-              if: steps.branchstatus.outputs.status == 'Branch not found'
+              if: steps.branchstatus.outputs.status == 'Branch not found' && steps.pushstatus.conclusion == "success"
               run: |
                 autoMREnabled=$(gh api /repos/${REPOOWNER}/${{ matrix.template }} --jq '.allow_auto_merge')
                 if [[ "${autoMREnabled}" != "true" ]]; then
