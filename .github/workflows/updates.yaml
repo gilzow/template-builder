@@ -293,7 +293,7 @@ jobs:
                 fi
             # 3a. Verify the repository is set for automerge
             - name: Step 12. Check if auto-merge is enabled for repository
-              if: steps.branchstatus.outputs.status == 'Branch not found' && steps.pushstatus.conclusion == "success"
+              if: steps.branchstatus.outputs.status == 'Branch not found' && steps.pushstatus.conclusion == 'success'
               run: |
                 autoMREnabled=$(gh api /repos/${REPOOWNER}/${{ matrix.template }} --jq '.allow_auto_merge')
                 if [[ "${autoMREnabled}" != "true" ]]; then
