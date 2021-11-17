@@ -189,7 +189,10 @@ jobs:
             - name: Check if update branch exists on GH
               id: branchstatus
               run: |
+                echo "dealing with template ${{ matrix.template }} for owner ${REPOOWNER}"
                 STATUS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${REPOOWNER}/${{ matrix.template }}/branches/$UPDATES_BRANCH)
+                branchStatus=$( echo $STATUS | jq -r '.message' )
+                echo "branch status is ${branchStatus}"
                 echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
             - name: Exit if update branch exists
               if: steps.branchstatus.outputs.status != 'Branch not found'
