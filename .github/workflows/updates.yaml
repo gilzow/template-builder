@@ -308,11 +308,14 @@ jobs:
             - name: Add branch protection rules to default branch
               if: steps.branchstatus.outputs.status == 'Branch not found'
               run: |
+                # For some reason, the following isnt being expanded when we try to use it directly
+                defaultBranch=${{ steps.defaultbranch.outputs.branch }}
+                echo "our default branch is ${defaultBranch}"
                 # we HAVE to set the number of reviewers to 1 as the API will error otherwise
                 protectBranchJSON='{"required_status_checks":{"strict":true,"contexts":[]},"enforce_admins":true,"required_pull_request_reviews":{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1},"restrictions":null}'
                 # @todo do we need to check if the generation of the branch protection was successful? The API should return a 200 if successful, but at this stage
                 # I'm not sure how we access returned response headers from the cli tool
-                echo "${protectBranchJSON}" | gh api -X PUT "/repos/${REPOOWNER}/${{ matrix.template }}/branches/${{ steps.defaultbranch.outputs.branch }}/protection" --input -
+                echo "${protectBranchJSON}" | gh api -X PUT "/repos/${REPOOWNER}/${{ matrix.template }}/branches/${defaultBranch}/protection" --input -
             # 4b. Patch the rule we just created
             - name: Patch the Branch Protection Rule
               id: branchprotection
@@ -369,7 +372,7 @@ jobs:
             - name: Automatically merge only after necessary requirements are met
               if: ${{ steps.branchstatus.outputs.status == 'Branch not found' && steps.open-pull-request.outputs.pull-request-number != '' }}
               run: |
-                  gh pr merge ${{ steps.open-pull-request.outputs.pull-request-number }} --auto --merge --repo=${REPOOWNER}/${{ matrix.template }}
+                  gh pr merge ${{ steps.open-pull-request.outputs.pull-request-number }} --auto --merge --delete-branch --repo=${REPOOWNER}/${{ matrix.template }}
                   lastcommand=$?
 
             # 6. Catch all failures and successes.
