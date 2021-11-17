@@ -374,7 +374,7 @@ jobs:
 
             # 6. Catch all failures and successes.
             - name: Send failed workflows
-              if: ${{ fail  ure() }}
+              if: ${{ failure() }}
               run: |
                   TEMPLATE=${{ matrix.template }} 
                   RUN_URL=https://github.com/${REPOOWNER}/template-builder/actions/runs/$GITHUB_RUN_ID
