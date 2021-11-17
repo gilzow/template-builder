@@ -171,7 +171,7 @@ jobs:
                 echo "::notice::Repo id - ${repoID}"
                 repoFound=$(echo "$repoData" | jq '.message')
                 echo "::notice::Repo Found status - ${repoFound}"
-                if [ -z "${repoID}" ] || [ "${repoFound}" = "Not Found" ]; then
+                if [[ -z "${repoID}" || "${repoFound}" == 'Not Found'  ]]; then
                   message="The template repo for ${{ matrix.template }} doesn't exist and will need to be created before I can help you."
                   echo "::error::${message}"
                   echo "SLACK_MSG=${message}" >> $GITHUB_ENV
