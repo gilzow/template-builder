@@ -172,9 +172,9 @@ jobs:
                 if [[ -z "$repoID" || "$repoFound" = "Not Found"  ]]; then
                   message="The template repo for ${{ matrix.template }} doesn't exist and will need to be created before I can help you."
                   echo "::error ::${message}"
-                  echo "::set-env name=SLACK_MSG::${message}"
-                  echo "::set-env name=SLACK_PRURL::no-pr"
-                  echo "::set-env name=SLACK_STATUS::skip"
+                  echo "SLACK_MSG=${message}" >> $GITHUB_ENV
+                  echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
+                  echo "SLACK_STATUS=skip" >> $GITHUB_ENV
                   exit 11;
                 else
                   echo "::set-output name=slackmsg::''"
@@ -214,9 +214,9 @@ jobs:
                 if [[ 'Branch not found' != "$branchStatus" ]]; then
                   MESSAGE="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/$TEMPLATE/tree/$UPDATES_BRANCH) is closed."
                   echo "::error ::${message}"
-                  echo "::set-env name=SLACK_MSG::${message}"
-                  echo "::set-env name=SLACK_PRURL::no-pr"
-                  echo "::set-env name=SLACK_STATUS::skip"
+                  echo "SLACK_MSG=${message}" >> $GITHUB_ENV
+                  echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
+                  echo "SLACK_STATUS=skip" >> $GITHUB_ENV
                   exit 12; # should fail the remaining steps
                 fi
 
@@ -281,9 +281,9 @@ jobs:
                 if [[ "${step11}" = "Branch not found" ]]; then
                   message="The update branch ${UPDATES_BRANCH} for the template ${{ matrix.template }} was not found. Can't create a PR without it."
                   echo "::error ::${message}"
-                  echo "::set-env name=SLACK_MSG::${message}"
-                  echo "::set-env name=SLACK_PRURL::no-pr"
-                  echo "::set-env name=SLACK_STATUS::skip"
+                  echo "SLACK_MSG=${message}" >> $GITHUB_ENV
+                  echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
+                  echo "SLACK_STATUS=skip" >> $GITHUB_ENV
                   exit 110;
                 else
                   echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
@@ -383,7 +383,7 @@ jobs:
                   RUN_URL=https://github.com/${REPOOWNER}/template-builder/actions/runs/$GITHUB_RUN_ID
                   THREAD_ID=${{ needs.build.outputs.threadts }}
                   PR_URL=${SLACK_PRURL}
-                  MESSAGE="Something went wrong. Investigate.\n${SLACK_MSG}"
+                  MESSAGE="Something went wrong. Investigate.\n${{ env.SLACK_MSG }}"
                   echo "::warning ::I would send the following warning to slack\n${MESSAGE}"
                   RESULT=$(SLACK_BOT_TOKEN=$SLACK_TOKEN CHANNEL_ID=$SLACK_CHANNEL_ID THREAD_ID=$THREAD_ID poetry run python utils/slack_notifier.py down $TEMPLATE "$RUN_URL" "$PR_URL" "$MESSAGE")
             - name: Step 19. Send successfull workflows to the pull request
