@@ -160,6 +160,17 @@ jobs:
                   - template: 'aspnet-core'
 
         steps: 
+            # -1. Make sure the template repo exists 
+            - name: Verify the template repo exists
+              run: | 
+                echo "Job status is ${{ job.status }}"
+                repoData=$(gh api "/repos/${REPOOWNER}/${{ matrix.template }}")
+                repoID=$(echo "$repoData" | jq '.id')
+                repoFound=$(echo "$repoData" | jq '.message')
+                if [[ -z "$repoID" || "$repoFound" = "Not Found"  ]]; then
+                  echo "The template repo for ${{ matrix.template }} doesn't exist and will need to be created before I can help you."
+                  exit 1;
+                fi
             # 0. Install tools and dependencies.
             - uses: actions/checkout@v2
             - name: Setup Ruby
@@ -189,6 +200,7 @@ jobs:
             - name: Check if update branch exists on GH
               id: branchstatus
               run: |
+                echo "Job status is ${{ job.status }}"
                 echo "dealing with template ${{ matrix.template }} for owner ${REPOOWNER}"
                 STATUS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${REPOOWNER}/${{ matrix.template }}/branches/$UPDATES_BRANCH)
                 branchStatus=$( echo $STATUS | jq -r '.message' )
@@ -197,6 +209,7 @@ jobs:
             - name: Exit if update branch exists
               if: steps.branchstatus.outputs.status != 'Branch not found'
               run: |
+                echo "Job status is ${{ job.status }}"
                 TEMPLATE=${{ matrix.template }} 
                 MESSAGE="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/$TEMPLATE/tree/$UPDATES_BRANCH) is closed."
                 echo "$MESSAGE"
@@ -210,6 +223,7 @@ jobs:
             - name: 'Cleanup'
               if: steps.branchstatus.outputs.status == 'Branch not found'
               run: |
+                echo "Job status is ${{ job.status }}"
                 python -m poetry run doit cleanup:${{ matrix.template }}
             - name: 'Initialize'
               if: steps.branchstatus.outputs.status == 'Branch not found'
@@ -221,6 +235,7 @@ jobs:
             - name: 'Initialize remote'
               if: steps.branchstatus.outputs.status == 'Branch not found'
               run: |
+                echo "Job status is ${{ job.status }}"
                 # Get the remote 
                 export TEMPLATE=${{ matrix.template }}
 
@@ -294,10 +309,10 @@ jobs:
               if: steps.branchstatus.outputs.status == 'Branch not found'
               run: |
                 # we HAVE to set the number of reviewers to 1 as the API will error otherwise
-                protectBranchJSON='{"required_status_checks":{"strict":true,"contexts":["contexts"]},"enforce_admins":true,"required_pull_request_reviews":{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1},"restrictions":null}'
+                protectBranchJSON='{"required_status_checks":{"strict":true,"contexts":[]},"enforce_admins":true,"required_pull_request_reviews":{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1},"restrictions":null}'
                 # @todo do we need to check if the generation of the branch protection was successful? The API should return a 200 if successful, but at this stage
                 # I'm not sure how we access returned response headers from the cli tool
-                echo "${protectBranchJSON}" | gh api -X PUT /repos/gilzow/hugo/branches/master/protection --input -
+                echo "${protectBranchJSON}" | gh api -X PUT "/repos/${REPOOWNER}/${{ matrix.template }}/branches/${{ steps.defaultbranch.outputs.branch }}/protection" --input -
             # 4b. Patch the rule we just created
             - name: Patch the Branch Protection Rule
               id: branchprotection
@@ -359,7 +374,7 @@ jobs:
 
             # 6. Catch all failures and successes.
             - name: Send failed workflows
-              if: ${{ failure() }}
+              if: ${{ fail  ure() }}
               run: |
                   TEMPLATE=${{ matrix.template }} 
                   RUN_URL=https://github.com/${REPOOWNER}/template-builder/actions/runs/$GITHUB_RUN_ID
