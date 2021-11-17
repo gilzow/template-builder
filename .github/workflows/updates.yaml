@@ -168,12 +168,12 @@ jobs:
                 # Why curl instead of the gh cli? Because on not found, the gh cli will return an exit code of 1 which immediately fails the step and the job
                 repoData=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${REPOOWNER}/${{ matrix.template }})
                 repoID=$(echo "$repoData" | jq '.id')
-                echo "::debug::Repo id - ${repoID}"
+                echo "::notice::Repo id - ${repoID}"
                 repoFound=$(echo "$repoData" | jq '.message')
-                echo "::debug::Repo Found status - ${repoFound}"
+                echo "::notice::Repo Found status - ${repoFound}"
                 if [[ -z "$repoID" || "$repoFound" = "Not Found"  ]]; then
                   message="The template repo for ${{ matrix.template }} doesn't exist and will need to be created before I can help you."
-                  echo "::error ::${message}"
+                  echo "::error::${message}"
                   echo "SLACK_MSG=${message}" >> $GITHUB_ENV
                   echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
                   echo "SLACK_STATUS=skip" >> $GITHUB_ENV
@@ -215,7 +215,7 @@ jobs:
 
                 if [[ 'Branch not found' != "$branchStatus" ]]; then
                   MESSAGE="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/$TEMPLATE/tree/$UPDATES_BRANCH) is closed."
-                  echo "::error ::${message}"
+                  echo "::error::${message}"
                   echo "SLACK_MSG=${message}" >> $GITHUB_ENV
                   echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
                   echo "SLACK_STATUS=skip" >> $GITHUB_ENV
@@ -282,7 +282,7 @@ jobs:
 
                 if [[ "${step11}" = "Branch not found" ]]; then
                   message="The update branch ${UPDATES_BRANCH} for the template ${{ matrix.template }} was not found. Can't create a PR without it."
-                  echo "::error ::${message}"
+                  echo "::error::${message}"
                   echo "SLACK_MSG=${message}" >> $GITHUB_ENV
                   echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
                   echo "SLACK_STATUS=skip" >> $GITHUB_ENV
