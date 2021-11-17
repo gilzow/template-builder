@@ -216,7 +216,7 @@ jobs:
               uses: actions/checkout@v2
               with:
                 token: ${{ secrets.DEVREL_TOKEN }}
-                repository: "${REPOOWNER}/${{ matrix.template }}"
+                repository: ${{ env.REPOOWNER }}/${{ matrix.template }}
                 path: templates/${{ matrix.template }}/build
             - name: 'Initialize remote'
               if: steps.branchstatus.outputs.status == 'Branch not found'
