@@ -313,7 +313,7 @@ jobs:
                   # patch it so the review check is disabled
                   # b = branch, p = protection, r = rule, M (at the end) = mutation
                   bprUpdateReviewersM="
-                    mutation updateBPR(\$bprID:String\!) {
+                    mutation updateBPR(\$bprID:String!) {
                       updateBranchProtectionRule(input:{
                         branchProtectionRuleId: \$bprID,
                         requiredApprovingReviewCount:0
