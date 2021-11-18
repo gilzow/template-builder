@@ -12,6 +12,7 @@ packaging = "^20.4"
 requests = "^2.26.0"
 slack-sdk = "^3.11.2"
 certifi = "^2021.10.8"
+pipenv = "^2021.11.15"
 
 [tool.poetry.dev-dependencies]
 autopep8 = "^1.5.4"
