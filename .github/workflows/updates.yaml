@@ -159,7 +159,39 @@ jobs:
                   # .NET
                   - template: 'aspnet-core'
 
-        steps: 
+        steps:
+            # Before beginning we need set up all our tools and dependencies
+            # 0. Install our tools and dependencies.
+            - uses: actions/checkout@v2
+            - name: Pre-Start a. Setup Ruby
+              uses: actions/setup-ruby@v1
+              with:
+                ruby-version: ${{ env.RUBY_VERSION }}
+            - name: Pre-Start b. Setup Python
+              uses: actions/setup-python@v2
+              with:
+                python-version: ${{ env.PYTHON_VERSION }}
+            - name: Pre-Start c. Install Poetry
+              run: |
+                python -m pip install poetry==$POETRY_VERSION
+            - name: Pre-Start d. Configure Poetry
+              run: |
+                python -m poetry config virtualenvs.in-project true
+            - name: Pre-Start e. Cache the virtualenv
+              uses: actions/cache@v2
+              with:
+                path: ./.venv
+                key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
+            - name: Pre-Start f. Install dependencies
+              run: |
+                python -m poetry install
+
+            - name: Pre-Start g. Set default var values
+              run: |
+                # according to the docs we should be able to set *and update* env vars to pass data between steps
+                # @see https://docs.github.com/en/actions/learn-github-actions/workflow-commands-for-github-actions#setting-an-environment-variable
+                echo "SLACK_MSG=''" >> $GITHUB_ENV
+                echo "PR_STATUS=continue" >> $GITHUB_ENV         
             ##########
             # Steps 1 - 5 need to happen regardless if we are going to do an update as we need them to be performed for every
             # template repository 
@@ -182,8 +214,6 @@ jobs:
                   echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
                   echo "SLACK_STATUS=skip" >> $GITHUB_ENV
                   exit 11;
-                else
-                  echo "::set-output name=slackmsg::''"
                 fi
             # 2. Verify the repository is set for automerge
             - name: Step 2. Check if auto-merge is enabled for repository
@@ -254,7 +284,7 @@ jobs:
                 branchStatus=$( echo $STATUS | jq -r '.message' )
 
                 if [[ 'Branch not found' != "$branchStatus" ]]; then
-                  MESSAGE="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/$TEMPLATE/tree/$UPDATES_BRANCH) is closed."
+                  message="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/$TEMPLATE/tree/$UPDATES_BRANCH) is closed."
                   echo "::error::${message}"
                   echo "SLACK_MSG=${message}" >> $GITHUB_ENV
                   echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
@@ -263,34 +293,6 @@ jobs:
                 fi
 
                 echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
-
-            
-            
-            # ok, we should now have everything we need in order to proceed with running the update
-            # 7. Install tools and dependencies.
-            - uses: actions/checkout@v2
-            - name: Step 7a. Setup Ruby
-              uses: actions/setup-ruby@v1
-              with:
-                ruby-version: ${{ env.RUBY_VERSION }}
-            - name: Step 7b. Setup Python
-              uses: actions/setup-python@v2
-              with:
-                python-version: ${{ env.PYTHON_VERSION }}
-            - name: Step 7c. Install Poetry
-              run: |
-                python -m pip install poetry==$POETRY_VERSION
-            - name: Step 7d. Configure Poetry
-              run: |
-                python -m poetry config virtualenvs.in-project true
-            - name: Step 7e. Cache the virtualenv
-              uses: actions/cache@v2
-              with:
-                path: ./.venv
-                key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
-            - name: Step 7f. Install dependencies
-              run: |
-                python -m poetry install
 
             # 8. Run the update tasks through template-builder.
             - name: 'Step 8. Cleanup template build area'
@@ -351,6 +353,7 @@ jobs:
 
                 if [[ "${step11}" = "Branch not found" ]]; then
                   message="The update branch ${UPDATES_BRANCH} for the template ${{ matrix.template }} was not found. Can't create a PR without it."
+                  message="${message} Possibly the template had no updates."
                   echo "::error::${message}"
                   echo "SLACK_MSG=${message}" >> $GITHUB_ENV
                   echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
@@ -383,15 +386,15 @@ jobs:
                     echo "${response}"
                   fi
 
-            # 5. Set the pull request to automerge when checks have passed.
+            # 17. Set the pull request to automerge when checks have passed.
             - name: Step 17. Automatically merge only after necessary requirements are met
               if: env.PR_STATUS != 'skip'
               run: |
                   gh pr merge ${{ steps.open-pull-request.outputs.pull-request-number }} --auto --merge --delete-branch --repo=${REPOOWNER}/${{ matrix.template }}
                   lastcommand=$?
 
-            # 6. Catch all failures and successes.
-            - name: Step 19. Send failed workflows
+            # 18. Catch all failures and successes.
+            - name: Step 18. Send failed workflows
               if: ${{ failure() }}
               run: |
                   TEMPLATE=${{ matrix.template }} 
@@ -401,7 +404,7 @@ jobs:
                   MESSAGE="Something went wrong. Investigate.\n${{ env.SLACK_MSG }}"
                   echo "::warning ::I would send the following warning to slack\n${MESSAGE}"
                   RESULT=$(SLACK_BOT_TOKEN=$SLACK_TOKEN CHANNEL_ID=$SLACK_CHANNEL_ID THREAD_ID=$THREAD_ID poetry run python utils/slack_notifier.py down $TEMPLATE "$RUN_URL" "$PR_URL" "$MESSAGE")
-            - name: Step 19. Send successfull workflows to the pull request
+            - name: Step 18. Send successfull workflows to the pull request
               if: ${{ success() && steps.branchstatus.outputs.status == 'Branch not found' }}
               run: |
                 TEMPLATE=${{ matrix.template }}
