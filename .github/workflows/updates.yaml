@@ -180,6 +180,9 @@ jobs:
             - name: Pre-Start d. Configure Poetry
               run: |
                 python -m poetry config virtualenvs.in-project true
+            - name: Pre-start install pipenv
+              run: 
+                python -m pip install pipenv
             - name: Pre-Start e. Cache the virtualenv
               uses: actions/cache@v2
               with:
