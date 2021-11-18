@@ -284,7 +284,7 @@ jobs:
                 branchStatus=$( echo $STATUS | jq -r '.message' )
 
                 if [[ 'Branch not found' != "$branchStatus" ]]; then
-                  message="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/$TEMPLATE/tree/$UPDATES_BRANCH) is closed."
+                  message="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/${{ matrix.template }}/tree/$UPDATES_BRANCH) is closed."
                   echo "::error::${message}"
                   echo "SLACK_MSG=${message}" >> $GITHUB_ENV
                   echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
