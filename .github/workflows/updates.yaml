@@ -336,11 +336,11 @@ jobs:
             - name: 'Step 10. Update template'
               run: |
                 # For some reason, in the template-builder app, on first run, python needs a second update before it actually updates
-                #UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit update:${{ matrix.template }}
-                python -m poetry run doit update:${{ matrix.template }}
+                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit update:${{ matrix.template }}
                 message="${{ matrix.template }} is "
                 if [[ ${PYTHON_TEMPLATES} =~ ${{ matrix.template }} ]]; then
                   message="${message} a python template so I need to run the update a second time."
+                  UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit update:${{ matrix.template }}
                 else
                   message="${message} isnt a python template, so one update is enough"
                 fi
