@@ -160,6 +160,10 @@ jobs:
                   - template: 'aspnet-core'
 
         steps: 
+            ##########
+            # Steps 1 - 5 need to happen regardless if we are going to do an update as we need them to be performed for every
+            # template repository 
+            ###########
             # 1. Make sure the template repo exists 
             - name: Step 1. Verify the template repo exists
               id: template-repo-exists
@@ -181,137 +185,30 @@ jobs:
                 else
                   echo "::set-output name=slackmsg::''"
                 fi
-            # 0. Install tools and dependencies.
-            - uses: actions/checkout@v2
-            - name: Setup Ruby
-              uses: actions/setup-ruby@v1
-              with:
-                ruby-version: ${{ env.RUBY_VERSION }}
-            - name: Setup Python
-              uses: actions/setup-python@v2
-              with:
-                python-version: ${{ env.PYTHON_VERSION }}
-            - name: Install Poetry
-              run: |
-                python -m pip install poetry==$POETRY_VERSION
-            - name: Configure Poetry
-              run: |
-                python -m poetry config virtualenvs.in-project true
-            - name: Cache the virtualenv
-              uses: actions/cache@v2
-              with:
-                path: ./.venv
-                key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
-            - name: Install dependencies
-              run: |
-                python -m poetry install
-
-            # 2. Skip early if the update branch already exists (template investigation in progress).
-            - name: Step 2. Check if update branch exists on GH
-              id: branchstatus
-              run: |
-                STATUS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${REPOOWNER}/${{ matrix.template }}/branches/$UPDATES_BRANCH)
-                branchStatus=$( echo $STATUS | jq -r '.message' )
-
-                if [[ 'Branch not found' != "$branchStatus" ]]; then
-                  MESSAGE="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/$TEMPLATE/tree/$UPDATES_BRANCH) is closed."
-                  echo "::error::${message}"
-                  echo "SLACK_MSG=${message}" >> $GITHUB_ENV
-                  echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
-                  echo "SLACK_STATUS=skip" >> $GITHUB_ENV
-                  exit 12; # should fail the remaining steps
-                fi
-
-                echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
-
-            # 3. Run the update tasks through template-builder.
-            - name: 'Step 3. Cleanup template build area'
-              run: |
-                python -m poetry run doit cleanup:${{ matrix.template }}
-            - name: 'Step 4. Initialize template build'
-              uses: actions/checkout@v2
-              with:
-                token: ${{ secrets.DEVREL_TOKEN }}
-                repository: ${{ env.REPOOWNER }}/${{ matrix.template }}
-                path: templates/${{ matrix.template }}/build
-            - name: 'Step 5. Initialize remote'
-              run: |
-                # Get the remote 
-                export TEMPLATE=${{ matrix.template }}
-
-                REMOTE_UPSTREAM=$(poetry run python -c '
-                import os
-                import dodo
-                try: 
-                    print(dodo.project_factory(os.environ["TEMPLATE"]).remote)
-                except:
-                    print("no remote")
-                ')
-
-                # Set up Git.
-                cd templates/${{ matrix.template }}/build
-                git config --global user.email "$GIT_EMAIL"
-                git config --global user.name "$GIT_USER"
-
-                if [ "$REMOTE_UPSTREAM" == "no remote" ]; then
-                    echo "$TEMPLATE is type Basic. Skipping remote clone."
-                else
-                    echo "Upstream found: $REMOTE_UPSTREAM"
-                    git remote add project $REMOTE_UPSTREAM
-                fi
-            - name: 'Step 6. Update'
-              run: |
-                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit update:${{ matrix.template }}
-            - name: 'Step 7. Platformify'
-              run: |
-                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit platformify:${{ matrix.template }}
-            - name: 'Step 8. Branch'
-              run: |
-                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit branch:${{ matrix.template }}
-            - name: 'Step 9. Push'
-              run: |
-                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit push:${{ matrix.template }}
-
-            # 3. Check to see updates have been pushed to a branch.
-            - name: Step 10. Check if updates have been pushed
-              id: pushstatus
-              run: |
-                STATUS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${REPOOWNER}/${{ matrix.template }}/branches/$UPDATES_BRANCH)
-                step11=$( echo $STATUS | jq -r '.message' )
-                echo "pushed branch status is ${step11}"
-
-                if [[ "${step11}" = "Branch not found" ]]; then
-                  message="The update branch ${UPDATES_BRANCH} for the template ${{ matrix.template }} was not found. Can't create a PR without it."
-                  echo "::error::${message}"
-                  echo "SLACK_MSG=${message}" >> $GITHUB_ENV
-                  echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
-                  echo "SLACK_STATUS=skip" >> $GITHUB_ENV
-                  exit 110;
-                else
-                  echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
-                fi
-            # 3a. Verify the repository is set for automerge
-            - name: Step 12. Check if auto-merge is enabled for repository
+            # 2. Verify the repository is set for automerge
+            - name: Step 2. Check if auto-merge is enabled for repository
               run: |
                 autoMREnabled=$(gh api /repos/${REPOOWNER}/${{ matrix.template }} --jq '.allow_auto_merge')
                 if [[ "${autoMREnabled}" != "true" ]]; then
                   gh api -X PATCH /repos/${REPOOWNER}/${{ matrix.template }} --field allow_auto_merge=true
                 fi  
 
-            # 4. Create pull request from pushed update.
-            - name: Step 13. Get template default branch
+            #3. Get the template repo's default branch
+            - name: Step 3. Get template default branch
               id: defaultbranch
               run: |
                 # Get the default branch.
                 DEFAULT_BRANCH=$(gh api /repos/${REPOOWNER}/${{ matrix.template }} --jq '.default_branch')
                 echo "Our default branch for this template is ${DEFAULT_BRANCH}"
-                echo "::set-output name=branch::$DEFAULT_BRANCH" 
+                echo "::set-output name=branch::$DEFAULT_BRANCH"
 
-            # 4a. Check if default branch has branch rules in place
+            # 4. Check if default branch has branch rules in place
             # @todo do we bother to check, or do we just assume it isnt set and attempt to create it anyway? If we attempt to create it and it already
             # exists, it should just return the same values anyway
-            - name: Step 14. Add branch protection rules to default branch
+            - name: Step 4. Add branch protection rules to default branch
               run: |
+                # @todo it would be nice if there was some way to verify if the protection rule we need is set and in place instead of always 
+                # doing this step and step 5 *every time*.  
                 # For some reason, the following isnt being expanded when we try to use it directly
                 defaultBranch=${{ steps.defaultbranch.outputs.branch }}
                 echo "our default branch is ${defaultBranch}"
@@ -320,8 +217,8 @@ jobs:
                 # @todo do we need to check if the generation of the branch protection was successful? The API should return a 200 if successful, but at this stage
                 # I'm not sure how we access returned response headers from the cli tool
                 echo "${protectBranchJSON}" | gh api -X PUT "/repos/${REPOOWNER}/${{ matrix.template }}/branches/${defaultBranch}/protection" --input -
-            # 4b. Patch the rule we just created
-            - name: Step 15. Patch the Branch Protection Rule
+            # 5. Patch the rule we just created
+            - name: Step 5. Patch the Branch Protection Rule
               id: branchprotection
               run: |
                 branchProtectionQuery='query($name: String!, $owner: String!) { repository(owner: $owner, name: $name) { branchProtectionRules(first: 1) { nodes { id } } } }'
@@ -349,9 +246,125 @@ jobs:
                     # @todo should we check for success or just go for it?
                     gh api graphql -F bprID="${branchProtectionID}" -f query="${bprUpdateReviewersM}"
                 fi
+            # 6. Skip early if the update branch already exists (template investigation in progress).
+            - name: Step 6. Check if update branch exists on GH
+              id: branchstatus
+              run: |
+                STATUS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${REPOOWNER}/${{ matrix.template }}/branches/$UPDATES_BRANCH)
+                branchStatus=$( echo $STATUS | jq -r '.message' )
+
+                if [[ 'Branch not found' != "$branchStatus" ]]; then
+                  MESSAGE="Update branch already exists. Skipping template until investigation on open branch (https://github.com/${REPOOWNER}/$TEMPLATE/tree/$UPDATES_BRANCH) is closed."
+                  echo "::error::${message}"
+                  echo "SLACK_MSG=${message}" >> $GITHUB_ENV
+                  echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
+                  echo "SLACK_STATUS=skip" >> $GITHUB_ENV
+                  exit 12; # should fail the remaining steps
+                fi
+
+                echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
+
+            
+            
+            # ok, we should now have everything we need in order to proceed with running the update
+            # 7. Install tools and dependencies.
+            - uses: actions/checkout@v2
+            - name: Step 7a. Setup Ruby
+              uses: actions/setup-ruby@v1
+              with:
+                ruby-version: ${{ env.RUBY_VERSION }}
+            - name: Step 7b. Setup Python
+              uses: actions/setup-python@v2
+              with:
+                python-version: ${{ env.PYTHON_VERSION }}
+            - name: Step 7c. Install Poetry
+              run: |
+                python -m pip install poetry==$POETRY_VERSION
+            - name: Step 7d. Configure Poetry
+              run: |
+                python -m poetry config virtualenvs.in-project true
+            - name: Step 7e. Cache the virtualenv
+              uses: actions/cache@v2
+              with:
+                path: ./.venv
+                key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
+            - name: Step 7f. Install dependencies
+              run: |
+                python -m poetry install
+
+            # 8. Run the update tasks through template-builder.
+            - name: 'Step 8. Cleanup template build area'
+              run: |
+                python -m poetry run doit cleanup:${{ matrix.template }}
+            # 9. 
+            - name: 'Step9. Initialize template build'
+              uses: actions/checkout@v2
+              with:
+                token: ${{ secrets.DEVREL_TOKEN }}
+                repository: ${{ env.REPOOWNER }}/${{ matrix.template }}
+                path: templates/${{ matrix.template }}/build
+            - name: 'Step 10. Initialize remote'
+              run: |
+                # Get the remote 
+                export TEMPLATE=${{ matrix.template }}
+
+                REMOTE_UPSTREAM=$(poetry run python -c '
+                import os
+                import dodo
+                try: 
+                    print(dodo.project_factory(os.environ["TEMPLATE"]).remote)
+                except:
+                    print("no remote")
+                ')
+
+                # Set up Git.
+                cd templates/${{ matrix.template }}/build
+                git config --global user.email "$GIT_EMAIL"
+                git config --global user.name "$GIT_USER"
+
+                if [ "$REMOTE_UPSTREAM" == "no remote" ]; then
+                    echo "$TEMPLATE is type Basic. Skipping remote clone."
+                else
+                    echo "Upstream found: $REMOTE_UPSTREAM"
+                    git remote add project $REMOTE_UPSTREAM
+                fi
+            - name: 'Step 11. Update template'
+              run: |
+                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit update:${{ matrix.template }}
+            - name: 'Step 12. Platformify template'
+              run: |
+                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit platformify:${{ matrix.template }}
+            - name: 'Step 13. Branch template'
+              run: |
+                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit branch:${{ matrix.template }}
+            - name: 'Step 14. Push template'
+              run: |
+                UPDATES_BRANCH=$UPDATES_BRANCH UPDATE_COMMIT_MSG=$UPDATE_COMMIT_MSG python -m poetry run doit push:${{ matrix.template }}
+
+            # 15. Check to see updates have been pushed to a branch.
+            - name: Step 15. Check if updates have been pushed
+              id: pushstatus
+              run: |
+                STATUS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${REPOOWNER}/${{ matrix.template }}/branches/$UPDATES_BRANCH)
+                step11=$( echo $STATUS | jq -r '.message' )
+                echo "pushed branch status is ${step11}"
+
+                if [[ "${step11}" = "Branch not found" ]]; then
+                  message="The update branch ${UPDATES_BRANCH} for the template ${{ matrix.template }} was not found. Can't create a PR without it."
+                  echo "::error::${message}"
+                  echo "SLACK_MSG=${message}" >> $GITHUB_ENV
+                  echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
+                  echo "SLACK_STATUS=skip" >> $GITHUB_ENV
+                  echo "PR_STATUS=skip" >> $GITHUB_ENV
+                  # exit 110; // we dont want to exit as it causes this job to be marked as "failed" 
+                else
+                  echo "::set-output name=status::$( echo $STATUS | jq -r '.message' )"
+                  echo "PR_STATUS=continue" >> $GITHUB_ENV
+                fi
 
             - name: 'Step 16. Open pull request'
               id: open-pull-request
+              if: env.PR_STATUS != 'skip'
               run: |
                   TITLE="Scheduled updates."
                   BODY="Scheduled updates from template-builder ($(date))."
@@ -372,7 +385,7 @@ jobs:
 
             # 5. Set the pull request to automerge when checks have passed.
             - name: Step 17. Automatically merge only after necessary requirements are met
-              if: ${{ steps.branchstatus.outputs.status == 'Branch not found' && steps.open-pull-request.outputs.pull-request-number != '' }}
+              if: env.PR_STATUS != 'skip'
               run: |
                   gh pr merge ${{ steps.open-pull-request.outputs.pull-request-number }} --auto --merge --delete-branch --repo=${REPOOWNER}/${{ matrix.template }}
                   lastcommand=$?
