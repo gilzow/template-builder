@@ -160,6 +160,17 @@ jobs:
                   - template: 'aspnet-core'
 
         steps: 
+            - name: Step 0, what is going on
+              id: comeon
+              run: |
+                FOO="BAR"
+                if [[ -z ${BAZ} || "$FOO" == "BAR" ]]; then
+                  echo "::error::FINALLY! It did what I expected!"
+                  exit 1;
+                else
+                  echo "::notice::Really? REALLY?"
+                fi
+            
             # 1. Make sure the template repo exists 
             - name: Step 1. Verify the template repo exists
               id: template-repo-exists
