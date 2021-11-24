@@ -13,7 +13,7 @@ Drupal is a flexible and extensible PHP-based CMS framework.
 ## Features
 
 * PHP 7.4
-* MariaDB 10.4
+* MariaDB 10.5
 * Redis 5
 * Drush included
 * Automatic TLS certificates
