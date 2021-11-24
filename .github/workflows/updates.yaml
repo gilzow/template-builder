@@ -262,7 +262,7 @@ jobs:
                         pattern: \$branch
                         requiresStatusChecks: true
                         requiresStrictStatusChecks: true
-                        requiredStatusCheckContexts: ['Fake test']
+                        requiredStatusCheckContexts: [\"Fake test\"]
                         requiresApprovingReviews: true
                         requiredApprovingReviewCount: 0
                         isAdminEnforced: true
