@@ -259,7 +259,7 @@ jobs:
                     mutation(\$repositoryId:ID!,\$branch:String!) {
                       createBranchProtectionRule(input: {
                         repositoryId: \$repositoryId
-                        pattern: $branch
+                        pattern: \$branch
                         requiresStatusChecks: true
                         requiresStrictStatusChecks: true
                         requiredStatusCheckContexts: ['Fake test']
