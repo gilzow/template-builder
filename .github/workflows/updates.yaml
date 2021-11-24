@@ -246,7 +246,7 @@ jobs:
                 defaultBranch=${{ steps.defaultbranch.outputs.branch }}
                 echo "our default branch is ${defaultBranch}"
                 # we HAVE to set the number of reviewers to 1 as the API will error otherwise
-                protectBranchJSON='{"required_status_checks":{"strict":true,"contexts":["fake test"]},"enforce_admins":true,"required_pull_request_reviews":{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1},"restrictions":null}'
+                protectBranchJSON='{"required_status_checks":{"strict":true,"contexts":["Fake test"]},"enforce_admins":true,"required_pull_request_reviews":{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1},"restrictions":null}'
                 # @todo do we need to check if the generation of the branch protection was successful? The API should return a 200 if successful, but at this stage
                 # I'm not sure how we access returned response headers from the cli tool
                 echo "${protectBranchJSON}" | gh api -X PUT "/repos/${TEMPLATEOWNER}/${{ matrix.template }}/branches/${defaultBranch}/protection" --input -
