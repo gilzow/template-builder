@@ -207,16 +207,19 @@ jobs:
                 # Why curl instead of the gh cli? Because on not found, the gh cli will return an exit code of 1 which immediately fails the step and the job
                 repoData=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${TEMPLATEOWNER}/${{ matrix.template }})
                 repoID=$(echo "$repoData" | jq '.id')
+                repoNodeID=$(echo "$repoData" | jq '.node_id')
                 echo "::notice::Repo id - ${repoID}"
                 repoFound=$(echo "$repoData" | jq '.message')
                 echo "::notice::Repo Found status - ${repoFound}"
                 if [[ -z ${repoID} || "${repoFound}" == '"Not Found"'  ]]; then
-                  message="The template repo for ${{ matrix.template }} doesn't exist and will need to be created before I can help you."
-                  echo "::error::${message}"
-                  echo "SLACK_MSG=${message}" >> $GITHUB_ENV
-                  echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
-                  echo "SLACK_STATUS=skip" >> $GITHUB_ENV
-                  exit 11;
+                    message="The template repo for ${{ matrix.template }} doesn't exist and will need to be created before I can help you."
+                    echo "::error::${message}"
+                    echo "SLACK_MSG=${message}" >> $GITHUB_ENV
+                    echo "SLACK_PRURL=no-pr" >> $GITHUB_ENV
+                    echo "SLACK_STATUS=skip" >> $GITHUB_ENV
+                    exit 11;
+                else
+                    echo "::set-output name=repoNodeID::${repoNodeID}"
                 fi
             # 2. Verify the repository is set for automerge
             - name: Step 2. Check if auto-merge is enabled for repository
@@ -244,41 +247,59 @@ jobs:
                 # doing this step and step 5 *every time*.
                 # For some reason, the following isnt being expanded when we try to use it directly
                 defaultBranch=${{ steps.defaultbranch.outputs.branch }}
+                repoNodeID=${{ steps.template-repo-exists.outputs.repoNodeID }}
                 echo "our default branch is ${defaultBranch}"
+                echo "our repoNodeID is ${repoNodeID}"
                 # we HAVE to set the number of reviewers to 1 as the API will error otherwise
-                protectBranchJSON='{"required_status_checks":{"strict":true,"contexts":["Fake test"]},"enforce_admins":true,"required_pull_request_reviews":{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1},"restrictions":null}'
+                #protectBranchJSON='{"required_status_checks":{"strict":true,"contexts":["Fake test"]},"enforce_admins":true,"required_pull_request_reviews":{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1},"restrictions":null}'
                 # @todo do we need to check if the generation of the branch protection was successful? The API should return a 200 if successful, but at this stage
                 # I'm not sure how we access returned response headers from the cli tool
-                echo "${protectBranchJSON}" | gh api -X PUT "/repos/${TEMPLATEOWNER}/${{ matrix.template }}/branches/${defaultBranch}/protection" --input -
+                #echo "${protectBranchJSON}" | gh api -X PUT "/repos/${TEMPLATEOWNER}/${{ matrix.template }}/branches/${defaultBranch}/protection" --input -
+                branchProtectionRule="
+                    mutation(\$repositoryId:ID!,\$branch:String!) {
+                      createBranchProtectionRule(input: {
+                        repositoryId: \$repositoryId
+                        pattern: $branch
+                        requiresStatusChecks: true
+                        requiresStrictStatusChecks: true
+                        requiredStatusCheckContexts: ["Fake test"]
+                        requiresApprovingReviews: true
+                        requiredApprovingReviewCount: 0
+                        isAdminEnforced: true
+                      }) { clientMutationId }
+                    }
+                "
+
+                gh api graphql -F repositoryId="${repoNodeID}" -F branch="${defaultBranch}" -f query="${branchProtectionRule}"
             # 5. Patch the rule we just created
-            - name: Step 5. Patch the Branch Protection Rule
-              id: branchprotection
-              run: |
-                branchProtectionQuery='query($name: String!, $owner: String!) { repository(owner: $owner, name: $name) { branchProtectionRules(first: 1) { nodes { id } } } }'
+            #- name: Step 5. Patch the Branch Protection Rule
+              #id: branchprotection
+              #run: |
+                #branchProtectionQuery='query($name: String!, $owner: String!) { repository(owner: $owner, name: $name) { branchProtectionRules(first: 1) { nodes { id } } } }'
                 # @todo this assumes the branch protection rule is ALWAYS the first one. Brittle. Also assumes the rule exists
-                branchProtectionID=$(gh api graphql -F owner=${TEMPLATEOWNER} -F name=${{ matrix.template }} -f query="${branchProtectionQuery}" --jq '.data.repository.branchProtectionRules.nodes[0].id')
+                #branchProtectionID=$(gh api graphql -F owner=${TEMPLATEOWNER} -F name=${{ matrix.template }} -f query="${branchProtectionQuery}" --jq '.data.repository.branchProtectionRules.nodes[0].id')
 
-                echo "Branch Protection ID: ${branchProtectionID}"
+                #echo "Branch Protection ID: ${branchProtectionID}"
 
-                if [[ -n "${branchProtectionID}" ]]; then
+                #if [[ -n "${branchProtectionID}" ]]; then
                   # patch it so the review check is disabled
                   # b = branch, p = protection, r = rule, M (at the end) = mutation
-                  bprUpdateReviewersM="
-                    mutation updateBPR(\$bprID:String!) {
-                      updateBranchProtectionRule(input:{
-                        branchProtectionRuleId: \$bprID,
-                        requiredApprovingReviewCount:0
-                      }) {
-                        branchProtectionRule{
-                          id,
-                          requiredApprovingReviewCount
-                        }
-                      }
-                    }"
+                  #bprUpdateReviewersM="
+                    #mutation updateBPR(\$bprID:String!) {
+                      #updateBranchProtectionRule(input:{
+                        #branchProtectionRuleId: \$bprID,
+                        #requiredApprovingReviewCount:0
+                      #}) {
+                        #branchProtectionRule{
+                          #id,
+                          #requiredApprovingReviewCount
+                        #}
+                      #}
+                    #}"
 
                     # @todo should we check for success or just go for it?
-                    gh api graphql -F bprID="${branchProtectionID}" -f query="${bprUpdateReviewersM}"
-                fi
+                    #gh api graphql -F bprID="${branchProtectionID}" -f query="${bprUpdateReviewersM}"
+                #fi
             # 6. Skip early if the update branch already exists (template investigation in progress).
             - name: Step 6. Check if update branch exists on GH
               id: branchstatus
